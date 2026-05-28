@@ -94,7 +94,21 @@
                             ToolTip="{DynamicResource LabelSequenceTip}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border x:Name="TaskItemBorder" CornerRadius="4">
+                                    <Grid>
+                                        <Rectangle Fill="{DynamicResource PrimaryBrush}" Opacity="0.08" RadiusX="4" RadiusY="4">
+                                            <Rectangle.Style>
+                                                <Style TargetType="Rectangle">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Rectangle.Style>
+                                        </Rectangle>
+                                        <StackPanel>
+                                        <Border x:Name="TaskItemBorder" CornerRadius="4">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Background" Value="Transparent" />
@@ -135,7 +149,7 @@
                                                 IsHitTestVisible="{Binding ElementName=TaskList, Path=DataContext.Idle}"
                                                 MouseRightButtonUp="{s:Action ToggleCheckBoxNullOnRightClick,
                                                                               Target={x:Type helper:CheckBoxHelper}}">
-                                                <controls:TextBlock Text="{Binding Name}" Visibility="Hidden" />
+                                                <controls:TextBlock Text="{Binding Name}" Visibility="Collapsed" />
                                                 <CheckBox.ToolTip>
                                                     <ToolTip>
                                                         <ToolTip.Style>
@@ -174,96 +188,141 @@
                                                 </controls:TextBlock.Style>
                                             </controls:TextBlock>
 
-                                            <!--  Column 1: gear icon + action buttons (all independent from Column 0)  -->
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <StackPanel.Style>
-                                                        <Style TargetType="StackPanel">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers>
-                                                                <MultiDataTrigger>
-                                                                    <MultiDataTrigger.Conditions>
-                                                                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Border}, AncestorLevel=1}}" Value="True" />
-                                                                        <Condition Binding="{Binding Idle, Source={x:Static ui_vms:TaskQueueViewModel.TaskSettingDataContext}}" Value="True" />
-                                                                    </MultiDataTrigger.Conditions>
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </MultiDataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </StackPanel.Style>
-                                                    <Button
-                                                        hc:IconElement.Geometry="{StaticResource CopyTaskGeometry}"
-                                                        Command="{s:Action CopyTask,
-                                                                           Target={x:Static helper:Instances.TaskQueueViewModel}}"
-                                                        CommandParameter="{Binding}"
-                                                        Style="{StaticResource TaskActionButtonStyle}"
-                                                        ToolTip="{DynamicResource Copy}" />
-                                                    <Button
-                                                        hc:IconElement.Geometry="{StaticResource RenameTaskGeometry}"
-                                                        Command="{s:Action RenameTask,
-                                                                           Target={x:Static helper:Instances.TaskQueueViewModel}}"
-                                                        CommandParameter="{Binding}"
-                                                        Style="{StaticResource TaskActionButtonStyle}"
-                                                        ToolTip="{DynamicResource Rename}" />
-                                                    <Button
-                                                        hc:IconElement.Geometry="{StaticResource DeleteTaskGeometry}"
-                                                        Command="{s:Action RemoveTask,
-                                                                           Target={x:Static helper:Instances.TaskQueueViewModel}}"
-                                                        CommandParameter="{Binding}"
-                                                        Style="{StaticResource TaskActionButtonStyle}"
-                                                        ToolTip="{DynamicResource Delete}" />
-                                                </StackPanel>
-                                                <hc:ButtonGroup>
-                                                    <RadioButton
-                                                        x:Name="TaskSettingRadioButton"
-                                                        Width="22"
-                                                        Margin="0,0,4,0"
-                                                        Padding="0"
-                                                        hc:VisualElement.HighlightBackground="Transparent"
-                                                        hc:VisualElement.HighlightForeground="{DynamicResource PrimaryBrush}"
-                                                        Background="Transparent"
-                                                        BorderThickness="0"
-                                                        GroupName="TaskSettings"
-                                                        IsChecked="{Binding EnableSetting}"
-                                                        Style="{DynamicResource RadioGroupItemSingle}">
-                                                        <Grid Width="16" Height="16">
-                                                            <Path
-                                                                Data="{StaticResource ConfigGeometry}"
-                                                                Stretch="Uniform"
-                                                                Visibility="{c:Binding !EnableSetting}">
-                                                                <Path.Style>
-                                                                    <Style TargetType="Path">
-                                                                        <Setter Property="Fill" Value="{DynamicResource SecondaryTextBrush}" />
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
-                                                                                <Setter Property="Fill" Value="{DynamicResource PrimaryBrush}" />
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Path.Style>
-                                                            </Path>
-                                                            <Path
-                                                                Data="{StaticResource ConfigGeometry2}"
-                                                                Fill="{DynamicResource PrimaryBrush}"
-                                                                Stretch="Uniform"
-                                                                Visibility="{c:Binding EnableSetting}" />
-                                                        </Grid>
-                                                        <RadioButton.ToolTip>
-                                                            <ToolTip>
-                                                                <StackPanel>
-                                                                    <TextBlock Text="{DynamicResource TaskSettings}" />
-                                                                </StackPanel>
-                                                            </ToolTip>
-                                                        </RadioButton.ToolTip>
-                                                    </RadioButton>
-                                                </hc:ButtonGroup>
-                                            </StackPanel>
+                                            <!--  Column 1: gear icon  -->
+                                            <hc:ButtonGroup Grid.Column="1">
+                                                <RadioButton
+                                                    x:Name="TaskSettingRadioButton"
+                                                    Width="22"
+                                                    Margin="0,0,4,0"
+                                                    Padding="0"
+                                                    hc:VisualElement.HighlightBackground="Transparent"
+                                                    hc:VisualElement.HighlightForeground="{DynamicResource PrimaryBrush}"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    GroupName="TaskSettings"
+                                                    IsChecked="{Binding EnableSetting}"
+                                                    Style="{DynamicResource RadioGroupItemSingle}">
+                                                    <Grid Width="16" Height="16">
+                                                        <Path
+                                                            Data="{StaticResource ConfigGeometry}"
+                                                            Stretch="Uniform"
+                                                            Visibility="{c:Binding !EnableSetting}">
+                                                            <Path.Style>
+                                                                <Style TargetType="Path">
+                                                                    <Setter Property="Fill" Value="{DynamicResource SecondaryTextBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
+                                                                            <Setter Property="Fill" Value="{DynamicResource PrimaryBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Path.Style>
+                                                        </Path>
+                                                        <Path
+                                                            Data="{StaticResource ConfigGeometry2}"
+                                                            Fill="{DynamicResource PrimaryBrush}"
+                                                            Stretch="Uniform"
+                                                            Visibility="{c:Binding EnableSetting}" />
+                                                    </Grid>
+                                                    <RadioButton.ToolTip>
+                                                        <ToolTip>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{DynamicResource TaskSettings}" />
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </RadioButton.ToolTip>
+                                                </RadioButton>
+                                            </hc:ButtonGroup>
                                         </Grid>
-                                    </Border>
+                                        </Border>
+                                        <Rectangle Height="2" Margin="0,-1,0,0" Fill="{DynamicResource PrimaryBrush}">
+                                            <Rectangle.Style>
+                                                <Style TargetType="Rectangle">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Rectangle.Style>
+                                        </Rectangle>
+                                        <StackPanel MaxHeight="0">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                            <DataTrigger.EnterActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility" Duration="0:0:0">
+                                                                            <DiscreteObjectKeyFrame KeyTime="0:0:0" Value="{x:Static Visibility.Visible}" />
+                                                                        </ObjectAnimationUsingKeyFrames>
+                                                                        <DoubleAnimation Storyboard.TargetProperty="MaxHeight" To="40" Duration="0:0:0.2">
+                                                                            <DoubleAnimation.EasingFunction>
+                                                                                <CubicEase EasingMode="EaseOut" />
+                                                                            </DoubleAnimation.EasingFunction>
+                                                                        </DoubleAnimation>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </DataTrigger.EnterActions>
+                                                            <DataTrigger.ExitActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <DoubleAnimation Storyboard.TargetProperty="MaxHeight" To="0" Duration="0:0:0.15">
+                                                                            <DoubleAnimation.EasingFunction>
+                                                                                <CubicEase EasingMode="EaseIn" />
+                                                                            </DoubleAnimation.EasingFunction>
+                                                                        </DoubleAnimation>
+                                                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility" Duration="0:0:0.15" FillBehavior="HoldEnd">
+                                                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.15" Value="{x:Static Visibility.Collapsed}" />
+                                                                        </ObjectAnimationUsingKeyFrames>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </DataTrigger.ExitActions>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <StackPanel Margin="0,2,0,4" Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <Button
+                                                    hc:IconElement.Geometry="{StaticResource RunTaskOnceGeometry}"
+                                                    Command="{s:Action RunTaskOnce,
+                                                                       Target={x:Static helper:Instances.TaskQueueViewModel}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource TaskActionButtonStyle}"
+                                                    ToolTip="{DynamicResource RunTaskOnce}" />
+                                                <Button
+                                                    hc:IconElement.Geometry="{StaticResource CopyTaskGeometry}"
+                                                    Command="{s:Action CopyTask,
+                                                                       Target={x:Static helper:Instances.TaskQueueViewModel}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource TaskActionButtonStyle}"
+                                                    ToolTip="{DynamicResource Copy}" />
+                                                <Button
+                                                    hc:IconElement.Geometry="{StaticResource RenameTaskGeometry}"
+                                                    Command="{s:Action RenameTask,
+                                                                       Target={x:Static helper:Instances.TaskQueueViewModel}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource TaskActionButtonStyle}"
+                                                    ToolTip="{DynamicResource Rename}" />
+                                                <Button
+                                                    hc:IconElement.Geometry="{StaticResource DeleteTaskGeometry}"
+                                                    Command="{s:Action RemoveTask,
+                                                                       Target={x:Static helper:Instances.TaskQueueViewModel}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource TaskActionButtonStyle}"
+                                                    ToolTip="{DynamicResource Delete}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                             <ListBox.ItemContainerStyle>
                                 <Style BasedOn="{StaticResource NoSelectedHighlightListBoxItemStyle}" TargetType="{x:Type ListBoxItem}">
+                                    <EventSetter Event="PreviewMouseLeftButtonDown" Handler="TaskItem_PreviewMouseLeftButtonDown" />
                                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                     <Setter Property="Padding" Value="0" />
                                     <Setter Property="MinHeight" Value="24.5" />
