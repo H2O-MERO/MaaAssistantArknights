@@ -9,6 +9,7 @@
 #include "SwipeHelper.hpp"
 #include "Utils/Logger.hpp"
 #include "Utils/WorkingDir.hpp"
+#include "Win32ScreencapPreparation.hpp"
 
 namespace asst
 {
@@ -119,27 +120,20 @@ bool Win32Controller::screencap(cv::Mat& image_payload, bool allow_reconnect [[m
     LogTraceFunction;
 
     // 截图前把鼠标移走，避免光标出现在截图中影响识别
-    if (m_screen_size.second > 0) {
-        const bool with_window_pos =
-            (m_mouse_method & (Win32Input::SendMessageWithWindowPos | Win32Input::PostMessageWithWindowPos)) != 0;
-        if (m_main_screen_recognition) {
-            // 主界面情况下鼠标移动到窗口中心，等待主界面的视差动画，300ms
-            unit_touch_move(0, m_screen_size.first / 2, m_screen_size.second / 2, 0);
-            if (with_window_pos) {
-                unit_touch_up(0);
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(300));
-        }
-        else if (with_window_pos) {
-            // 在WindowPos输入模式下，非主界面识别把窗口移到屏幕外
-            save_window_position();
-            unit_touch_move(0, 0, m_screen_size.second + GetSystemMetrics(SM_CYVIRTUALSCREEN) + 100, 0);
-            unit_touch_up(0);
-        }
-        else {
-            unit_touch_move(0, 0, m_screen_size.second - 1, 0);
-        }
-    }
+    const bool with_window_pos =
+        (m_mouse_method & (Win32Input::SendMessageWithWindowPos | Win32Input::PostMessageWithWindowPos)) != 0;
+    prepare_win32_screencap(
+        {
+            .screen_width = m_screen_size.first,
+            .screen_height = m_screen_size.second,
+            .virtual_screen_height = GetSystemMetrics(SM_CYVIRTUALSCREEN),
+            .main_screen_recognition = m_main_screen_recognition,
+            .with_window_pos = with_window_pos,
+        },
+        [this]() { save_window_position(); },
+        [this](int contact, int x, int y, int pressure) { return unit_touch_move(contact, x, y, pressure); },
+        [this](int contact) { return unit_touch_up(contact); },
+        [](std::chrono::milliseconds duration) { std::this_thread::sleep_for(duration); });
 
     if (!unit_screencap(image_payload)) {
         return false;
