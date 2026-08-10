@@ -26,6 +26,7 @@ GetWindowThreadProcessId
 IsIconic
 IsWindowVisible
 GetWindowRect
+GetSystemMetrics
 SetWindowPos
 ShowWindow
 SetWinEventHook
@@ -36,6 +37,9 @@ SetWindowLong
 //BadInjectedDllChecker
 GetModuleHandle
 GetModuleFileName
+MessageBox
+MESSAGEBOX_STYLE
+MESSAGEBOX_RESULT
 
 //ToastNotification
 FlashWindowEx
