@@ -35,6 +35,27 @@
 #include "Common/AsstTypes.h"
 #include "Utils/Logger.hpp"
 
+namespace
+{
+class ScreencapSceneScope
+{
+public:
+    ScreencapSceneScope(asst::ControllerAPI* controller, asst::ScreencapScene scene) :
+        m_controller(controller)
+    {
+        m_controller->set_main_screen_recognition(scene == asst::ScreencapScene::MainScreen);
+    }
+
+    ~ScreencapSceneScope() { m_controller->set_main_screen_recognition(false); }
+
+    ScreencapSceneScope(const ScreencapSceneScope&) = delete;
+    ScreencapSceneScope& operator=(const ScreencapSceneScope&) = delete;
+
+private:
+    asst::ControllerAPI* m_controller = nullptr;
+};
+} // namespace
+
 asst::Controller::Controller(const AsstCallback& callback, Assistant* inst) :
     InstHelper(inst),
     m_callback(callback)
@@ -424,6 +445,11 @@ const std::string& asst::Controller::get_uuid() const
 
 cv::Mat asst::Controller::get_image(bool raw)
 {
+    return get_image(ScreencapScene::Default, raw);
+}
+
+cv::Mat asst::Controller::get_image(ScreencapScene scene, bool raw)
+{
     if (get_scale_size() == std::pair(0, 0)) {
         Log.error("Unknown image size");
         return {};
@@ -436,13 +462,13 @@ cv::Mat asst::Controller::get_image(bool raw)
         if (need_exit()) {
             break;
         }
-        if (screencap()) {
+        if (screencap(false, scene)) {
             success = true;
             break;
         }
     }
     while (!success && !need_exit()) {
-        if (screencap(true)) {
+        if (screencap(true, scene)) {
             break;
         }
         Log.error(__FUNCTION__, "screencap failed!");
@@ -476,7 +502,13 @@ cv::Mat asst::Controller::get_image_cache() const
 
 bool asst::Controller::screencap(bool allow_reconnect)
 {
+    return screencap(allow_reconnect, ScreencapScene::Default);
+}
+
+bool asst::Controller::screencap(bool allow_reconnect, ScreencapScene scene)
+{
     CHECK_EXIST(m_controller, false);
     std::unique_lock<std::shared_mutex> image_lock(m_image_mutex);
+    ScreencapSceneScope scene_scope(m_controller.get(), scene);
     return m_controller->screencap(m_cache_image, allow_reconnect);
 }

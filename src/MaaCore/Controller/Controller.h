@@ -74,6 +74,7 @@ public:
     }
 
     cv::Mat get_image(bool raw = false);
+    cv::Mat get_image(ScreencapScene scene, bool raw = false);
     cv::Mat get_image_cache() const;
     bool screencap(bool allow_reconnect = false);
 
@@ -116,6 +117,7 @@ public:
 
 private:
     cv::Mat get_resized_image_cache() const;
+    bool screencap(bool allow_reconnect, ScreencapScene scene);
 
     void clear_info() noexcept;
     void callback(AsstMsg msg, const json::value& details);

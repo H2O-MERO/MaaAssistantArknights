@@ -14,6 +14,22 @@
         "src/MaaCore/Utils/Algorithm.hpp",
         "unit_test/MaaCore/AlgorithmTest.cpp"
       ]
+    },
+    {
+      "id": "maa-win32-screencap-test",
+      "name": "Win32 Screencap",
+      "buildTarget": "maa-win32-screencap-test",
+      "ctestRegex": "^win32-screencap::",
+      "paths": [
+        "src/MaaCore/Controller/Controller.cpp",
+        "src/MaaCore/Controller/Controller.h",
+        "src/MaaCore/Controller/ControllerAPI.h",
+        "src/MaaCore/Controller/Win32Controller.cpp",
+        "src/MaaCore/Controller/Win32Controller.h",
+        "src/MaaCore/Controller/Win32ScreencapPreparation.hpp",
+        "src/MaaCore/Task/ProcessTask.cpp",
+        "unit_test/MaaCore/Win32ScreencapPreparationTest.cpp"
+      ]
     }
   ]
 }

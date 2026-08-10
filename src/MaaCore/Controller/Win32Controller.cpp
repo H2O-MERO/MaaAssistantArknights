@@ -2,6 +2,11 @@
 
 #include "Win32Controller.h"
 
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <cstdlib>
+#include <limits>
 #include <sstream>
 #include <thread>
 
@@ -12,6 +17,36 @@
 
 namespace asst
 {
+namespace
+{
+constexpr auto WindowMoveSettleTimeout = std::chrono::milliseconds(250);
+constexpr auto WindowMovePollInterval = std::chrono::milliseconds(5);
+constexpr auto WindowPosTrackingSettleDelay = std::chrono::milliseconds(40);
+constexpr LONG OffscreenWindowPadding = 8;
+
+class ScopedThreadDpiAwareness
+{
+public:
+    ScopedThreadDpiAwareness()
+    {
+        m_previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
+
+    ~ScopedThreadDpiAwareness()
+    {
+        if (m_previous) {
+            SetThreadDpiAwarenessContext(m_previous);
+        }
+    }
+
+    ScopedThreadDpiAwareness(const ScopedThreadDpiAwareness&) = delete;
+    ScopedThreadDpiAwareness& operator=(const ScopedThreadDpiAwareness&) = delete;
+
+private:
+    DPI_AWARENESS_CONTEXT m_previous = nullptr;
+};
+} // namespace
+
 Win32Controller::Win32Controller(const AsstCallback& callback, Assistant* inst) :
     InstHelper(inst),
     m_callback(callback),
@@ -24,7 +59,7 @@ Win32Controller::~Win32Controller()
 {
     LogTraceFunction;
 
-    restore_window_position();
+    restore_screencap_position();
 
     if (m_unit_handle && m_loader) {
         m_loader->destroy(m_unit_handle);
@@ -41,15 +76,27 @@ bool Win32Controller::attach(
     LogTraceFunction;
 
     m_inited = false;
-    m_hwnd = hwnd;
-    m_screencap_method = screencap_method;
-    m_mouse_method = mouse_method;
-    m_keyboard_method = keyboard_method;
+
+    restore_screencap_position();
 
     // 销毁旧的控制单元
     if (m_unit_handle && m_loader) {
         m_loader->destroy(m_unit_handle);
         m_unit_handle = nullptr;
+    }
+
+    {
+        std::scoped_lock lock(m_position_mutex);
+        m_window_rect_saved = false;
+        m_cursor_position_saved = false;
+    }
+
+    m_hwnd = hwnd;
+    m_screencap_method = screencap_method;
+    m_mouse_method = mouse_method;
+    m_keyboard_method = keyboard_method;
+    if (is_window_pos_input()) {
+        save_window_position();
     }
 
     // 加载 DLL
@@ -118,38 +165,39 @@ bool Win32Controller::screencap(cv::Mat& image_payload, bool allow_reconnect [[m
 {
     LogTraceFunction;
 
-    // 截图前把鼠标移走，避免光标出现在截图中影响识别
-    if (m_screen_size.second > 0) {
-        const bool with_window_pos =
-            (m_mouse_method & (Win32Input::SendMessageWithWindowPos | Win32Input::PostMessageWithWindowPos)) != 0;
-        if (m_main_screen_recognition) {
-            // 主界面情况下鼠标移动到窗口中心，等待主界面的视差动画，300ms
-            unit_touch_move(0, m_screen_size.first / 2, m_screen_size.second / 2, 0);
-            if (with_window_pos) {
-                unit_touch_up(0);
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(300));
-        }
-        else if (with_window_pos) {
-            // 在WindowPos输入模式下，非主界面识别把窗口移到屏幕外
-            save_window_position();
-            unit_touch_move(0, 0, m_screen_size.second + GetSystemMetrics(SM_CYVIRTUALSCREEN) + 100, 0);
-            unit_touch_up(0);
-        }
-        else {
-            unit_touch_move(0, 0, m_screen_size.second - 1, 0);
+    std::scoped_lock lock(m_position_mutex);
+    ScopedThreadDpiAwareness dpi_awareness;
+
+    // 先结束上一次输入跟踪并恢复位置，避免它与本次截图的直接窗口移动竞争。
+    restore_screencap_position_locked();
+
+    auto hwnd = static_cast<HWND>(m_hwnd);
+    constexpr auto PseudoMinimizeMethods = Win32Screencap::FramePool | Win32Screencap::PrintWindow;
+    if (hwnd && IsWindow(hwnd) && IsIconic(hwnd) && (m_screencap_method & PseudoMinimizeMethods) != 0) {
+        // 这些截图方式会在第一次截图时把真实最小化切换为伪最小化，过渡帧不能交给识别层。
+        cv::Mat transition_frame;
+        if (!unit_screencap(transition_frame)) {
+            return false;
         }
     }
 
-    if (!unit_screencap(image_payload)) {
-        return false;
-    }
+    const auto plan = make_win32_screencap_plan(
+        m_screen_size.first,
+        m_screen_size.second,
+        m_main_screen_recognition,
+        get_screencap_input_type());
 
-    if (m_screen_size.first == 0) {
+    const bool result = execute_win32_screencap(
+        plan,
+        [this](const Win32ScreencapPlan& preparation) { return prepare_screencap(preparation); },
+        [this, &image_payload]() { return unit_screencap(image_payload); },
+        [this]() { restore_screencap_position_locked(); });
+
+    if (result && m_screen_size.first == 0) {
         m_screen_size = { image_payload.cols, image_payload.rows };
     }
 
-    return true;
+    return result;
 }
 
 bool Win32Controller::start_game(const std::string& client_type [[maybe_unused]])
@@ -236,12 +284,15 @@ bool Win32Controller::click(const Point& p)
     // MaaWin32ControlUnit 返回 MaaControllerFeature_UseMouseDownAndUpInsteadOfClick
     // 需要使用 touch_down/touch_up 替代 click
     if (!unit_touch_down(0, p.x, p.y, 0)) {
+        restore_window_after_input();
         return false;
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    return unit_touch_up(0);
+    const bool up = unit_touch_up(0);
+    restore_window_after_input();
+    return up;
 }
 
 bool Win32Controller::input(const std::string& text)
@@ -281,6 +332,7 @@ bool Win32Controller::swipe(
     // MaaWin32ControlUnit 返回 MaaControllerFeature_UseMouseDownAndUpInsteadOfClick
     // 需要使用 touch_down/touch_move/touch_up 实现滑动
     if (!unit_touch_down(0, x1, y1, 0)) {
+        restore_window_after_input();
         return false;
     }
 
@@ -314,6 +366,7 @@ bool Win32Controller::swipe(
 
     if (!do_swipe(x1, y1, x2, y2, actual_duration)) {
         unit_touch_up(0);
+        restore_window_after_input();
         return false;
     }
 
@@ -322,7 +375,9 @@ bool Win32Controller::swipe(
         do_swipe(x2, y2, x2, y2 - opt.minitouch_extra_swipe_dist, opt.minitouch_extra_swipe_duration);
     }
 
-    return unit_touch_up(0);
+    const bool up = unit_touch_up(0);
+    restore_window_after_input();
+    return up;
 }
 
 bool Win32Controller::inject_input_event(const InputEvent& event)
@@ -332,8 +387,11 @@ bool Win32Controller::inject_input_event(const InputEvent& event)
     switch (event.type) {
     case InputEvent::Type::TOUCH_DOWN:
         return unit_touch_down(event.pointerId, event.point.x, event.point.y, 0);
-    case InputEvent::Type::TOUCH_UP:
-        return unit_touch_up(event.pointerId);
+    case InputEvent::Type::TOUCH_UP: {
+        const bool up = unit_touch_up(event.pointerId);
+        restore_window_after_input();
+        return up;
+    }
     case InputEvent::Type::TOUCH_MOVE:
         return unit_touch_move(event.pointerId, event.point.x, event.point.y, 0);
     case InputEvent::Type::KEY_DOWN: {
@@ -368,34 +426,311 @@ void Win32Controller::set_main_screen_recognition(bool on)
     m_main_screen_recognition = on;
 }
 
+Win32ScreencapInputType Win32Controller::get_screencap_input_type() const noexcept
+{
+    return classify_win32_screencap_input(m_mouse_method);
+}
+
+bool Win32Controller::prepare_screencap(const Win32ScreencapPlan& plan)
+{
+    return prepare_win32_screencap(
+        plan,
+        [this]() { return save_cursor_position(); },
+        [this]() { return save_window_position_locked(); },
+        [this](int x, int y) { return move_cursor_for_screencap(x, y); },
+        [this](int x, int y) { return align_window_for_screencap(x, y); },
+        [this]() { return park_window_for_screencap(); },
+        [this](int x, int y) { return send_hover_message(x, y); },
+        [this]() { return send_mouse_leave_message(); },
+        [](int delay_ms) { std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms)); });
+}
+
+bool Win32Controller::send_hover_message(int x, int y)
+{
+    auto hwnd = static_cast<HWND>(m_hwnd);
+    if (!hwnd || !IsWindow(hwnd)) {
+        return false;
+    }
+
+    DWORD_PTR result = 0;
+    if (!SendMessageTimeoutW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y), SMTO_ABORTIFHUNG, 25, &result)) {
+        Log.warn("Failed to send Win32 hover message before screencap", GetLastError());
+        return false;
+    }
+    return true;
+}
+
+bool Win32Controller::send_mouse_leave_message()
+{
+    auto hwnd = static_cast<HWND>(m_hwnd);
+    if (!hwnd || !IsWindow(hwnd)) {
+        return false;
+    }
+
+    DWORD_PTR result = 0;
+    if (!SendMessageTimeoutW(hwnd, WM_MOUSELEAVE, 0, 0, SMTO_ABORTIFHUNG, 25, &result)) {
+        Log.warn("Failed to send Win32 mouse leave message before screencap", GetLastError());
+        return false;
+    }
+    return true;
+}
+
+bool Win32Controller::save_cursor_position()
+{
+    if (!GetCursorPos(&m_saved_cursor_position)) {
+        return false;
+    }
+    m_cursor_position_saved = true;
+    return true;
+}
+
+bool Win32Controller::move_cursor_for_screencap(int x, int y)
+{
+    auto hwnd = static_cast<HWND>(m_hwnd);
+    if (!hwnd || !IsWindow(hwnd)) {
+        return false;
+    }
+
+    POINT target = { x, y };
+    if (!ClientToScreen(hwnd, &target)) {
+        return false;
+    }
+
+    m_screencap_cursor_target = target;
+    if (!SetCursorPos(target.x, target.y)) {
+        Log.warn("Failed to move physical cursor before Win32 screencap", GetLastError());
+        return false;
+    }
+
+    const auto deadline = std::chrono::steady_clock::now() + WindowMoveSettleTimeout;
+    do {
+        POINT current = {};
+        if (GetCursorPos(&current) && current.x == target.x && current.y == target.y) {
+            return true;
+        }
+        std::this_thread::sleep_for(WindowMovePollInterval);
+    } while (std::chrono::steady_clock::now() < deadline);
+
+    Log.warn("Physical cursor did not settle before Win32 screencap");
+    return false;
+}
+
+bool Win32Controller::align_window_for_screencap(int x, int y)
+{
+    auto hwnd = static_cast<HWND>(m_hwnd);
+    POINT cursor = {};
+    POINT client_origin = {};
+    RECT window_rect = {};
+    if (!hwnd || !IsWindow(hwnd) || !GetCursorPos(&cursor) || !ClientToScreen(hwnd, &client_origin) ||
+        !GetWindowRect(hwnd, &window_rect)) {
+        return false;
+    }
+
+    const int64_t border_x = static_cast<int64_t>(client_origin.x) - window_rect.left;
+    const int64_t border_y = static_cast<int64_t>(client_origin.y) - window_rect.top;
+    const int64_t desired_left = static_cast<int64_t>(cursor.x) - x - border_x;
+    const int64_t desired_top = static_cast<int64_t>(cursor.y) - y - border_y;
+    const auto clamp_long = [](int64_t value) {
+        return static_cast<LONG>(std::clamp(
+            value,
+            static_cast<int64_t>(std::numeric_limits<LONG>::min()),
+            static_cast<int64_t>(std::numeric_limits<LONG>::max())));
+    };
+
+    return move_window_and_wait(clamp_long(desired_left), clamp_long(desired_top));
+}
+
+bool Win32Controller::park_window_for_screencap()
+{
+    auto hwnd = static_cast<HWND>(m_hwnd);
+    RECT window_rect = {};
+    if (!hwnd || !IsWindow(hwnd) || !GetWindowRect(hwnd, &window_rect)) {
+        return false;
+    }
+
+    const LONG window_height = window_rect.bottom - window_rect.top;
+    if (window_height <= 0) {
+        return false;
+    }
+
+    const int64_t desired_top =
+        calculate_offscreen_window_top(GetSystemMetrics(SM_YVIRTUALSCREEN), window_height, OffscreenWindowPadding);
+    const LONG top = static_cast<LONG>(std::clamp(
+        desired_top,
+        static_cast<int64_t>(std::numeric_limits<LONG>::min()),
+        static_cast<int64_t>(std::numeric_limits<LONG>::max())));
+
+    return move_window_and_wait(window_rect.left, top);
+}
+
+bool Win32Controller::move_window_and_wait(LONG left, LONG top)
+{
+    auto hwnd = static_cast<HWND>(m_hwnd);
+    if (!hwnd || !IsWindow(hwnd)) {
+        return false;
+    }
+
+    if (!SetWindowPos(
+            hwnd,
+            nullptr,
+            left,
+            top,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING | SWP_ASYNCWINDOWPOS)) {
+        Log.warn("Failed to move Win32 window before screencap", GetLastError());
+        return false;
+    }
+    if (!wait_window_position(left, top)) {
+        Log.warn("Win32 window did not settle before screencap", left, top);
+        return false;
+    }
+    return true;
+}
+
+bool Win32Controller::wait_window_position(LONG left, LONG top) const
+{
+    auto hwnd = static_cast<HWND>(m_hwnd);
+    const auto deadline = std::chrono::steady_clock::now() + WindowMoveSettleTimeout;
+    do {
+        RECT current = {};
+        if (hwnd && GetWindowRect(hwnd, &current) && std::abs(static_cast<int64_t>(current.left) - left) <= 1 &&
+            std::abs(static_cast<int64_t>(current.top) - top) <= 1) {
+            return true;
+        }
+        std::this_thread::sleep_for(WindowMovePollInterval);
+    } while (std::chrono::steady_clock::now() < deadline);
+    return false;
+}
+
+void Win32Controller::restore_screencap_position()
+{
+    std::scoped_lock lock(m_position_mutex);
+    ScopedThreadDpiAwareness dpi_awareness;
+    restore_screencap_position_locked();
+}
+
+void Win32Controller::restore_screencap_position_locked()
+{
+    if (is_window_pos_input()) {
+        restore_window_position_locked();
+    }
+
+    if (!m_cursor_position_saved) {
+        return;
+    }
+
+    POINT current = {};
+    if (GetCursorPos(&current) && should_restore_cursor_position(
+                                      m_saved_cursor_position.x,
+                                      m_saved_cursor_position.y,
+                                      m_screencap_cursor_target.x,
+                                      m_screencap_cursor_target.y,
+                                      current.x,
+                                      current.y)) {
+        if (!SetCursorPos(m_saved_cursor_position.x, m_saved_cursor_position.y)) {
+            Log.warn("Failed to restore physical cursor after Win32 screencap", GetLastError());
+        }
+    }
+    else if (current.x != m_screencap_cursor_target.x || current.y != m_screencap_cursor_target.y) {
+        // 用户在截图期间主动移动了鼠标，不覆盖用户的新位置。
+        Log.debug("Skip restoring physical cursor because it was moved by the user");
+    }
+    m_cursor_position_saved = false;
+}
+
 void Win32Controller::save_window_position()
 {
-    if (m_window_rect_saved || !m_hwnd) {
-        return;
+    std::scoped_lock lock(m_position_mutex);
+    ScopedThreadDpiAwareness dpi_awareness;
+    save_window_position_locked();
+}
+
+bool Win32Controller::save_window_position_locked()
+{
+    if (m_window_rect_saved) {
+        return true;
+    }
+    if (!m_hwnd) {
+        return false;
     }
     HWND hwnd = static_cast<HWND>(m_hwnd);
     if (!IsWindow(hwnd) || !GetWindowRect(hwnd, &m_original_window_rect)) {
-        return;
+        return false;
     }
     m_window_rect_saved = true;
+    return true;
 }
 
 void Win32Controller::restore_window_position()
 {
     LogTraceFunction;
+    std::scoped_lock lock(m_position_mutex);
+    ScopedThreadDpiAwareness dpi_awareness;
+    restore_window_position_locked();
+}
+
+void Win32Controller::restore_window_position_locked()
+{
+    // inactive 会结束 MaaFramework 的 WindowPos 跟踪并清理其内部保存的位置。
+    if (is_window_pos_input()) {
+        if (auto* unit = static_cast<MaaFwControlUnitAPI*>(m_unit_handle); unit != nullptr) {
+            unit->inactive();
+        }
+    }
+
     if (!m_window_rect_saved || !m_hwnd) {
         return;
     }
-    // 先结束窗口追踪，避免把窗口移动到错误位置
-    if (auto* unit = static_cast<MaaFwControlUnitAPI*>(m_unit_handle); unit != nullptr) {
-        unit->inactive();
-    }
+
     HWND hwnd = static_cast<HWND>(m_hwnd);
-    if (IsWindow(hwnd)) {
-        SetWindowPos(hwnd, nullptr, m_original_window_rect.left, m_original_window_rect.top, 0, 0,
-                     SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    if (!IsWindow(hwnd)) {
+        return;
     }
-    m_window_rect_saved = false;
+
+    RECT current = {};
+    if (GetWindowRect(hwnd, &current) &&
+        std::abs(static_cast<int64_t>(current.left) - m_original_window_rect.left) <= 1 &&
+        std::abs(static_cast<int64_t>(current.top) - m_original_window_rect.top) <= 1) {
+        // 析构和重新绑定路径会额外兜底恢复，窗口已归位时不再重复触发移动消息。
+        return;
+    }
+
+    if (!SetWindowPos(
+            hwnd,
+            nullptr,
+            m_original_window_rect.left,
+            m_original_window_rect.top,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING | SWP_ASYNCWINDOWPOS)) {
+        Log.warn("Failed to restore Win32 window position", GetLastError());
+        return;
+    }
+    if (!wait_window_position(m_original_window_rect.left, m_original_window_rect.top)) {
+        Log.warn(
+            "Win32 window did not settle at its original position",
+            m_original_window_rect.left,
+            m_original_window_rect.top);
+        return;
+    }
+}
+
+void Win32Controller::restore_window_after_input()
+{
+    if (!is_window_pos_input()) {
+        return;
+    }
+
+    // MaaFramework 的 WindowPos 追踪在 touch_up 后仍保留短暂宽限期，等待结束后再恢复。
+    std::this_thread::sleep_for(WindowPosTrackingSettleDelay);
+    restore_window_position();
+}
+
+bool Win32Controller::is_window_pos_input() const noexcept
+{
+    constexpr auto WindowPosMethods = Win32Input::SendMessageWithWindowPos | Win32Input::PostMessageWithWindowPos;
+    return (m_mouse_method & WindowPosMethods) != 0;
 }
 
 ControlFeat::Feat Win32Controller::support_features() const noexcept

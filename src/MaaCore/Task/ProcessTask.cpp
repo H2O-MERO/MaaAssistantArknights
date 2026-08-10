@@ -52,7 +52,9 @@ bool is_main_screen_recognition(const std::string& name)
 
 bool is_main_screen_recognition(const TaskList& list)
 {
-    return std::any_of(list.cbegin(), list.cend(), [](const std::string& name) { return is_main_screen_recognition(name); });
+    return std::any_of(list.cbegin(), list.cend(), [](const std::string& name) {
+        return is_main_screen_recognition(name);
+    });
 }
 } // namespace
 
@@ -191,18 +193,10 @@ ProcessTask::HitDetail ProcessTask::find_first(const TaskList& list) /* const, e
         return { .task_ptr = std::move(task_ptr) };
     }
 
-    // 告知本次截图是否用于主界面识别，然后决定鼠标位置
-    ControllerAPI* underlying = ctrler()->get_underlying();
-    if (underlying != nullptr) {
-        underlying->set_main_screen_recognition(is_main_screen_recognition(list));
-    }
-
-    cv::Mat image = m_reusable.empty() ? ctrler()->get_image() : m_reusable;
+    // 主界面场景随本次截图传递，避免异步截图读取到临时状态
+    const auto scene = is_main_screen_recognition(list) ? ScreencapScene::MainScreen : ScreencapScene::Default;
+    cv::Mat image = m_reusable.empty() ? ctrler()->get_image(scene) : m_reusable;
     m_reusable = cv::Mat();
-
-    if (underlying != nullptr) {
-        underlying->set_main_screen_recognition(false);
-    }
     PipelineAnalyzer analyzer(image, Rect(), m_inst);
     analyzer.set_tasks(list);
 
