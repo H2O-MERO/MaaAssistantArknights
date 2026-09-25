@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "Config/TaskData.h"
+#include "Task/Fight/ActivitySchedule.h"
 #include "Task/Fight/DrGrandetTaskPlugin.h"
 #include "Task/Fight/FightTimesTaskPlugin.h"
 #include "Task/Fight/MedicineCounterTaskPlugin.h"
@@ -12,6 +13,7 @@
 #include "Task/Miscellaneous/ScreenshotTaskPlugin.h"
 #include "Task/ProcessTask.h"
 #include "Utils/Logger.hpp"
+#include "Utils/Platform.hpp"
 #include <ranges>
 
 asst::FightTask::FightTask(const AsstCallback& callback, Assistant* inst) :
@@ -62,6 +64,31 @@ asst::FightTask::FightTask(const AsstCallback& callback, Assistant* inst) :
     m_subtasks.emplace_back(m_sidestory_reopen_task_ptr);
 }
 
+bool asst::FightTask::run()
+{
+    if (m_enable && m_skip_if_sidestory_ends_before_week_end && !m_activity_file.empty()) {
+        auto schedule = ActivitySchedule::load(m_activity_file, m_client_type);
+        if (!schedule) {
+            LogWarn << "Unable to evaluate activity schedule; continuing Fight task" << m_activity_file << m_client_type;
+        }
+        else if (schedule->should_skip_fight(
+                     std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()))) {
+            LogInfo << "Fight task skipped because the current SideStory ends before the game week ends";
+            callback(
+                AsstMsg::TaskChainExtraInfo,
+                json::object {
+                    { "taskchain", std::string(TaskType) },
+                    { "taskid", m_task_id },
+                    { "what", "FightSkipped" },
+                    { "why", "SideStoryEndsBeforeWeekEnd" },
+                });
+            return true;
+        }
+    }
+
+    return InterfaceTask::run();
+}
+
 bool asst::FightTask::set_params(const json::value& params)
 {
     LogTraceFunction;
@@ -109,6 +136,13 @@ bool asst::FightTask::set_params(const json::value& params)
     std::string server = params.get("server", "CN");
     std::string client_type = params.get("client_type", std::string());
     bool is_dr_grandet = params.get("DrGrandet", false);
+
+    m_skip_if_sidestory_ends_before_week_end = params.get("skip_if_sidestory_ends_before_week_end", false);
+    m_activity_file = utils::path(params.get("activity_file", std::string()));
+    m_client_type = client_type;
+    if (m_skip_if_sidestory_ends_before_week_end && m_activity_file.empty()) {
+        LogWarn << "skip_if_sidestory_ends_before_week_end is enabled without activity_file; skip check disabled";
+    }
 
     if (auto opt = params.find<json::object>("drops")) {
         std::unordered_map<std::string, int> drops;

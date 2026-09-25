@@ -68,6 +68,18 @@ public class AsstFightTask : AsstBaseTask
     public bool IsDrGrandet { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether Core should skip this task when the current SideStory ends before the game week ends.
+    /// </summary>
+    [JsonProperty("skip_if_sidestory_ends_before_week_end")]
+    public bool SkipIfSideStoryEndsBeforeWeekEnd { get; set; }
+
+    /// <summary>
+    /// Gets or sets the path to StageActivityV2.json used by Core.
+    /// </summary>
+    [JsonProperty("activity_file")]
+    public string ActivityFile { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets 掉落物品id, 数量
     /// </summary>
     public Dictionary<string, int> Drops { get; set; } = [];
@@ -124,6 +136,13 @@ public class AsstFightTask : AsstBaseTask
         {
             param["drops"] = JObject.FromObject(Drops);
         }
+
+        if (!SkipIfSideStoryEndsBeforeWeekEnd)
+        {
+            param.Remove("skip_if_sidestory_ends_before_week_end");
+            param.Remove("activity_file");
+        }
+
         param["client_type"] = ClientType.ToCustomString();
 
         return (TaskType, param);

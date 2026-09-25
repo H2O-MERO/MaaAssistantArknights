@@ -153,6 +153,18 @@ Bilibili 서버: `张三`인 경우 `张三`, `张`, `三` 입력 가능
 <br>
 현재 진행 중인 SideStory의 뒤쪽 3개 스테이지는 반드시 전체 스테이지 번호를 입력해야 함  
 :::  
+::: field skip_if_sidestory_ends_before_week_end
+@type boolean
+@default false
+@optional
+이벤트 일정에 따라 자동으로 건너뛸지 여부입니다. 현재 Side Story가 진행 중이고 연속되거나 겹치는 후속 이벤트가 현재 게임 주가 끝나기 전에 종료되면 이 작업을 건너뜁니다. 일요일 종료 시점까지 연속으로 진행되면 건너뛰지 않습니다.
+:::
+::: field activity_file
+@type string
+@default ""
+@optional
+`StageActivityV2.json` 경로입니다. `skip_if_sidestory_ends_before_week_end`를 활성화할 때 필요합니다. 파일이 없거나 파싱할 수 없으면 Core는 작업을 계속 실행합니다. maa-cli에서는 `Fight` 작업의 `params`에 이 두 필드를 직접 설정할 수 있습니다.
+:::
 ::: field medicine  
 @type number
 @default 0

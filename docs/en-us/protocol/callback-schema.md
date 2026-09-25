@@ -220,7 +220,10 @@ When a task chain is interrupted by an unhandled exception, `TaskChainError` add
 
 ### TaskChainExtraInfo
 
-Todo
+When `Fight` is skipped based on the event schedule, the message additionally contains:
+
+- `what` (string, required): Fixed to `FightSkipped`.
+- `why` (string, required): Fixed to `SideStoryEndsBeforeWeekEnd`.
 
 ### SubTask Related Messages
 

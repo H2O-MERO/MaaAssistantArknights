@@ -159,6 +159,18 @@ Bilibili：`张三`、入力可能：`张三`、`张`、`三`
 - 当期 SS イベントの最後の 3 ステージ。[API](https://api.maa.plus/MaaAssistantArknights/api/gui/StageActivityV2.json) にアクセスして、サポートされているステージ リストを取得できます。[tasks.json](https://api.maa.plus/MaaAssistantArknights/api/resource/tasks.json) ファイルのイベント ステージ ナビゲーションを追加でロードする必要があります。
 - 復刻 SS イベント。`SSReopen-<ステージ プレフィックス>` と入力します。例えば `SSReopen-IC` と入力すると、XX-1～XX-9 ステージを一度に完了できます。
   :::  
+  ::: field skip_if_sidestory_ends_before_week_end
+  @type boolean
+  @default false
+  @optional
+  イベント日程に基づいて自動的にスキップするかどうか。現在 Side Story が開催中で、連続または重複する後続イベントが現在のゲーム内週の終了前に終わる場合、このタスクをスキップします。日曜日の終了まで連続して開催される場合はスキップしません。
+  :::
+  ::: field activity_file
+  @type string
+  @default ""
+  @optional
+  `StageActivityV2.json` のパス。`skip_if_sidestory_ends_before_week_end` を有効にする場合に必要です。ファイルが存在しない、または解析できない場合、Core はタスクを続行します。maa-cli では `Fight` タスクの `params` にこの 2 項目を直接設定できます。
+  :::
   ::: field medicine  
   @type number
   @default 0

@@ -290,6 +290,11 @@ typedef void(ASST_CALL* AsstApiCallback)(AsstMsgId msg, const char* details_json
 - `why` (string, required): 固定为 `TooManyBattlesAhead`。
 - `node_cost` (number, required): 规划得到的下一节点代价。
 
+`Fight` 根据活动排期跳过任务时，消息会额外携带：
+
+- `what` (string, required): 固定为 `FightSkipped`。
+- `why` (string, required): 固定为 `SideStoryEndsBeforeWeekEnd`。
+
 ### SubTask 相关消息
 
 :::: field-group

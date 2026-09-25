@@ -277,6 +277,11 @@ typedef void(ASST_CALL* AsstApiCallback)(AsstMsgId msg, const char* details_json
 - `why` (string, required): `TooManyBattlesAhead`로 고정.
 - `node_cost` (number, required): 계획된 다음 노드의 비용.
 
+`Fight`가 이벤트 일정에 따라 건너뛰어진 경우 메시지에 다음 항목이 추가됩니다:
+
+- `what` (string, required): `FightSkipped`로 고정.
+- `why` (string, required): `SideStoryEndsBeforeWeekEnd`로 고정.
+
 ### SubTask 관련 메시지
 
 :::: field-group

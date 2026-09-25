@@ -225,7 +225,10 @@ Todo
 
 ### TaskChainExtraInfo
 
-Todo
+`Fight` がイベント日程に基づいてスキップされた場合、メッセージには次の項目も含まれます：
+
+- `what` (string, required): `FightSkipped` 固定。
+- `why` (string, required): `SideStoryEndsBeforeWeekEnd` 固定。
 
 ### SubTask 関連情報
 

@@ -159,6 +159,18 @@ B服：`张三`，可输入 `张三`、`张`、`三`
 - 当期 SS 活动 后三关。可访问 [API](https://api.maa.plus/MaaAssistantArknights/api/gui/StageActivityV2.json) 获取支持的关卡列表。需额外加载 [tasks.json](https://api.maa.plus/MaaAssistantArknights/api/resource/tasks.json) 文件中的活动关卡导航。
 - 复刻的 SS 活动。输入 `SSReopen-<关卡前缀>` ，可一次性刷完 XX-1 ~ XX-9 关，如 `SSReopen-IC`。
   :::  
+  ::: field skip_if_sidestory_ends_before_week_end
+  @type boolean
+  @default false
+  @optional
+  是否根据活动排期智能跳过。若当前有 SideStory 活动，且连续或重叠的后续活动会在当前游戏周结束前终止，则跳过本任务；若活动连续覆盖至周日结束，则不跳过。
+  :::
+  ::: field activity_file
+  @type string
+  @default ""
+  @optional
+  `StageActivityV2.json` 的路径。启用 `skip_if_sidestory_ends_before_week_end` 时需要提供；文件缺失或无法解析时 Core 会继续执行任务。在 maa-cli 中可直接通过 `Fight` 的 `params` 配置这两个字段。
+  :::
   ::: field medicine  
   @type number
   @default 0

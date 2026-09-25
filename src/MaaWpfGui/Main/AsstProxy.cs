@@ -1480,6 +1480,9 @@ public class AsstProxy
 
                     switch (what)
                     {
+                        case "FightSkipped" when why == "SideStoryEndsBeforeWeekEnd":
+                            Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("FightSkippedActivitySchedule"), UiLogColor.Info);
+                            break;
                         case "RoutingRestart":
                             string msgText = string.Empty;
                             switch (why)

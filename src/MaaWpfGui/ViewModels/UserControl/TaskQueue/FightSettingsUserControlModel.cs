@@ -15,6 +15,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1347,6 +1348,8 @@ public class FightSettingsUserControlModel : TaskSettingsViewModel, FightSetting
             PenguinId = SettingsViewModel.ThirdPartyServiceSettings.PenguinId,
             ServerType = Instances.SettingsViewModel.ServerType,
             ClientType = SettingsViewModel.GameSettings.ClientType,
+            SkipIfSideStoryEndsBeforeWeekEnd = fight.SkipBasedOnActivitySchedule,
+            ActivityFile = Path.Combine(PathsHelper.CacheDir, "gui", "StageActivityV2.json"),
         };
 
         if (task.Stage == AnnihilationName && fight.UseCustomAnnihilation)
@@ -1673,12 +1676,6 @@ public class FightSettingsUserControlModel : TaskSettingsViewModel, FightSetting
         {
             if (baseTask is not FightTask fight || taskId is int and <= 0)
             {
-                return (null, []);
-            }
-
-            if (fight.SkipBasedOnActivitySchedule && Instances.StageManager.ShouldSkipFightForActivitySchedule())
-            {
-                Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("FightSkippedActivitySchedule"), UiLogColor.Info);
                 return (null, []);
             }
 

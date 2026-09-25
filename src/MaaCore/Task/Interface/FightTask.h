@@ -1,7 +1,9 @@
 #pragma once
 #include "Task/InterfaceTask.h"
 
+#include <filesystem>
 #include <memory>
+#include <string>
 
 namespace asst
 {
@@ -21,6 +23,7 @@ public:
     FightTask(const AsstCallback& callback, Assistant* inst);
     virtual ~FightTask() override = default;
 
+    virtual bool run() override;
     virtual bool set_params(const json::value& params) override;
 
 protected:
@@ -32,5 +35,8 @@ protected:
     std::shared_ptr<StageDropsTaskPlugin> m_stage_drops_plugin_ptr = nullptr;
     std::shared_ptr<DrGrandetTaskPlugin> m_dr_grandet_task_plugin_ptr = nullptr;
     std::shared_ptr<SideStoryReopenTask> m_sidestory_reopen_task_ptr = nullptr;
+    bool m_skip_if_sidestory_ends_before_week_end = false;
+    std::filesystem::path m_activity_file;
+    std::string m_client_type;
 };
 }

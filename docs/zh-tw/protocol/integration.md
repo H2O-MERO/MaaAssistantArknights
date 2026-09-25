@@ -160,6 +160,18 @@ B 服：`張三`，可輸入 `張三`、`張`、`三`
 - **當期 SideStory 活動**：支援活動後三關。可查閱 [API](https://api.maa.plus/MaaAssistantArknights/api/gui/StageActivityV2.json) 獲取支援的關卡列表。需額外載入 [tasks.json](https://api.maa.plus/MaaAssistantArknights/api/resource/tasks.json) 中的活動關卡導航。
 - **復刻 SideStory 活動**：輸入 `SSReopen-<關卡前綴>` ，可一次性刷完 XX-1 ~ XX-9 關，如 `SSReopen-IC`。
   :::  
+  ::: field skip_if_sidestory_ends_before_week_end
+  @type boolean
+  @default false
+  @optional
+  是否根據活動排程智慧跳過。若目前有 SideStory 活動，且連續或重疊的後續活動會在目前遊戲週結束前終止，則跳過本任務；若活動連續覆蓋至週日結束，則不會跳過。
+  :::
+  ::: field activity_file
+  @type string
+  @default ""
+  @optional
+  `StageActivityV2.json` 的路徑。啟用 `skip_if_sidestory_ends_before_week_end` 時需要提供；檔案缺失或無法解析時 Core 會繼續執行任務。在 maa-cli 中可直接透過 `Fight` 的 `params` 設定這兩個欄位。
+  :::
   ::: field medicine  
   @type number
   @default 0

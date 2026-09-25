@@ -6,7 +6,7 @@ icon: hugeicons:brain-02
 # Sanity Farming
 
 ::: info UI-Only Feature
-Some features on this page are implemented by the UI layer (such as Target Inventory, activity-aware skipping, Weekly Schedule, and multi-task ordering). See [Getting Started](../newbie.md#about-this-documentation) for details.
+Some features on this page are implemented by the UI layer (such as Target Inventory, Weekly Schedule, and multi-task ordering). See [Getting Started](../newbie.md#about-this-documentation) for details.
 :::
 
 ## General Settings
@@ -94,7 +94,7 @@ Example: Alternative Stages are `CE-6/5`, `1-7` and `LS-6/5`:
 
 ### Skip intelligently based on event schedule
 
-- Enable it under `Task Settings` - `Sanity Farming` - `Advanced Settings`. This feature is implemented by the UI.
+- Enable it under `Task Settings` - `Sanity Farming` - `Advanced Settings`. The skip decision is implemented by Core and can also be enabled by other integrations through `Fight` task parameters.
 - MAA first checks whether a Side Story event is active on the current in-game day. If so, and any continuous or overlapping follow-up events end before the current week ends, the current Sanity Farming task is skipped so Annihilation can run on any day after the events end. If Side Story events continuously cover the rest of the week through the end of Sunday, the task is not skipped.
 
 ### Weekly Schedule

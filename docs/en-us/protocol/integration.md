@@ -159,6 +159,18 @@ Currently supported stages for navigation include:
 - Last three stages of current SS events. Visit [API](https://api.maa.plus/MaaAssistantArknights/api/gui/StageActivityV2.json) for the list of supported stages. Requires additional loading of event stage navigation in [tasks.json](https://api.maa.plus/MaaAssistantArknights/api/resource/tasks.json) file.
 - Rerun SS events. Input `SSReopen-<stage prefix>` to farm XX-1 ~ XX-9 stages at once, e.g. `SSReopen-IC`.
   :::  
+  ::: field skip_if_sidestory_ends_before_week_end
+  @type boolean
+  @default false
+  @optional
+  Whether to skip intelligently based on the event schedule. The task is skipped when a Side Story is active now and its continuous or overlapping follow-up coverage ends before the current in-game week ends. It is not skipped when coverage continues through the end of Sunday.
+  :::
+  ::: field activity_file
+  @type string
+  @default ""
+  @optional
+  Path to `StageActivityV2.json`. Required when `skip_if_sidestory_ends_before_week_end` is enabled. Core continues the task if the file is missing or invalid. In maa-cli, set both fields directly in the `Fight` task's `params`.
+  :::
   ::: field medicine  
   @type number
   @default 0
