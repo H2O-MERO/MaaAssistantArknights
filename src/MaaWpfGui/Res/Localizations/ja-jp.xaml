@@ -1942,6 +1942,12 @@ C:\leidian\LDPlayer9
 5. アークナイツ設定で マウスカーソルサイズ を小さくし、認識領域の隠れを軽減してください
 6. ゲーム解像度は 16:9 である必要があります。推奨設定：1280x720 または 1920x1080</system:String>
     <system:String x:Key="UseAttachWindowWarningRecommendation" xml:space="preserve">7. マウス入力方式には PostMsg-WindowPos の使用を推奨します。この方式により、PC クライアントでの認識エラーやフリーズの問題を大幅に軽減できます</system:String>
+    <system:String x:Key="PcClickRetryNavigation">画面遷移</system:String>
+    <system:String x:Key="PcClickRetryRecruitConfirm">公開求人の確定</system:String>
+    <system:String x:Key="PcClickRetryRecruitTimer">公開求人の時間設定</system:String>
+    <system:String x:Key="PcClickRetrying">PC：{0}が反映されていないため、再認識してクリックします（再試行 {1}/{2} 回目）</system:String>
+    <system:String x:Key="PcClickRetrySucceeded">PC：{0}の再試行に成功しました（{1} 回再試行）</system:String>
+    <system:String x:Key="PcClickRetryFailed">PC：{0}の再試行に失敗しました（{1}/{2} 回再試行）</system:String>
     <system:String x:Key="AttachWindowScreencapMethod">スクリーンキャプチャ方式</system:String>
     <system:String x:Key="AttachWindowMouseMethod">マウス入力方式</system:String>
     <system:String x:Key="AttachWindowKeyboardMethod">キーボード入力方式</system:String>

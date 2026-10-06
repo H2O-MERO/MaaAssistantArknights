@@ -525,6 +525,11 @@ asst::TaskPtr asst::TaskData::generate_task_info(const std::string& name)
     ASST_TASKDATA_GET_VALUE_OR("action", action);
     ASST_TASKDATA_GET_VALUE_OR("cache", cache);
     ASST_TASKDATA_GET_VALUE_OR("maxTimes", max_times);
+    if (!ASST_TASKDATA_GET_VALUE_OR("pcClickRetryTimes", pc_click_retry_times) || task->pc_click_retry_times < 0 ||
+        task->pc_click_retry_times > 10) {
+        LogError << "Invalid PC click retry limit for task" << name;
+        return nullptr;
+    }
     ASST_TASKDATA_GET_VALUE_OR("preDelay", pre_delay);
     ASST_TASKDATA_GET_VALUE_OR("postDelay", post_delay);
     ASST_TASKDATA_GET_VALUE_OR("roi", roi);
@@ -1104,7 +1109,7 @@ bool asst::TaskData::syntax_check(const std::string& task_name, const json::valu
               // common
               "action",        "algorithm",     "baseTask",        "exceededNext",   "maxTimes",
               "next",          "onErrorNext",   "postDelay",       "preDelay",       "reduceOtherTimes",
-              "specialParams", "sub",           "subErrorIgnored", "highResolutionSwipeFix",
+              "specialParams", "sub",           "subErrorIgnored", "highResolutionSwipeFix", "pcClickRetryTimes",
 
               // specific
               "cache",         "colorScales",   "colorWithClose",  "maskRange",      "method",
@@ -1116,7 +1121,7 @@ bool asst::TaskData::syntax_check(const std::string& task_name, const json::valu
               // common
               "action",        "algorithm",   "baseTask",        "exceededNext", "maxTimes",
               "next",          "onErrorNext", "postDelay",       "preDelay",     "reduceOtherTimes",
-              "specialParams", "sub",         "subErrorIgnored", "highResolutionSwipeFix",
+              "specialParams", "sub",         "subErrorIgnored", "highResolutionSwipeFix", "pcClickRetryTimes",
 
               // specific
               "cache",         "fullMatch",   "isAscii",         "ocrReplace",   "rectMove",
@@ -1128,7 +1133,7 @@ bool asst::TaskData::syntax_check(const std::string& task_name, const json::valu
               // common
               "action",        "algorithm",   "baseTask",        "exceededNext", "maxTimes",
               "next",          "onErrorNext", "postDelay",       "preDelay",     "reduceOtherTimes",
-              "specialParams", "sub",         "subErrorIgnored", "highResolutionSwipeFix",
+              "specialParams", "sub",         "subErrorIgnored", "highResolutionSwipeFix", "pcClickRetryTimes",
               // specific
               "template",      "roi",         "count",         "ratio",          "detector",
           } },
@@ -1137,7 +1142,7 @@ bool asst::TaskData::syntax_check(const std::string& task_name, const json::valu
               // common
               "action",        "algorithm",   "baseTask",        "exceededNext", "maxTimes",
               "next",          "onErrorNext", "postDelay",       "preDelay",     "reduceOtherTimes",
-              "specialParams", "sub",         "subErrorIgnored", "highResolutionSwipeFix",
+              "specialParams", "sub",         "subErrorIgnored", "highResolutionSwipeFix", "pcClickRetryTimes",
 
               // specific
               "inputText"

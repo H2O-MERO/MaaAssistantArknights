@@ -58,6 +58,8 @@ protected:
     bool check_recruit_home_page();
     bool recruit_begin();
     bool check_timer(int);
+    std::optional<int> read_timer(const cv::Mat& image) const;
+    bool set_timer_pc(int minutes_expected);
     bool recruit_now();
     bool confirm();
     bool refresh();

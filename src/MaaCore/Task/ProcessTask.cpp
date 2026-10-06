@@ -166,8 +166,11 @@ bool ProcessTask::run()
 
     TaskConstPtr cur_task_ptr = nullptr;           // 当前任务，仅用于计算 on_error_next
     TaskList to_be_recognized = m_begin_task_list; // 待匹配任务列表
+    bool allow_click_retry = false;
     while (true) {
-        auto [status /*识别成功与否*/, next_task_ptr /*匹配到的任务*/] = find_and_run_task(to_be_recognized);
+        auto [status /*识别成功与否*/, next_task_ptr /*匹配到的任务*/] =
+            find_and_run_task(to_be_recognized, allow_click_retry);
+        allow_click_retry = false;
         switch (status) {
         case NodeStatus::RetryFailed:
             // retry 次数达到上限，下一个匹配列表是 on_error_next，若没有则回调 SubTaskError
@@ -182,6 +185,7 @@ bool ProcessTask::run()
             to_be_recognized = next_task_ptr->exceeded_next;
             break;
         case NodeStatus::Success:
+            allow_click_retry = true;
             // 成功匹配且执行成功，下一个匹配列表是 next
             if (auto it = m_next_override.find(next_task_ptr->name); it != m_next_override.end()) {
                 LogTrace << "found in override" << next_task_ptr->name << ", next:" << it->second;
@@ -436,7 +440,8 @@ ProcessTask::NodeStatus ProcessTask::run_task(const HitDetail& hits)
 }
 
 // 保证 first 为 Success 或 Runout 时 second 不为 nullptr
-std::pair<ProcessTask::NodeStatus, TaskConstPtr> ProcessTask::find_and_run_task(const TaskList& list)
+std::pair<ProcessTask::NodeStatus, TaskConstPtr>
+    ProcessTask::find_and_run_task(const TaskList& list, bool allow_click_retry)
 {
     if (need_exit()) {
         return { NodeStatus::Interrupted, nullptr };
@@ -447,6 +452,17 @@ std::pair<ProcessTask::NodeStatus, TaskConstPtr> ProcessTask::find_and_run_task(
         return { NodeStatus::Interrupted, nullptr };
     }
 
+    const auto previous_hit = m_last_hit_detail;
+    const auto previous_task = previous_hit != nullptr ? previous_hit->task_ptr : nullptr;
+    const bool retry_enabled = allow_click_retry && ctrler()->get_controller_type() == ControllerType::Win32 &&
+                               previous_task != nullptr && previous_task->action == ProcessTaskAction::ClickSelf &&
+                               previous_task->algorithm != AlgorithmType::JustReturn && previous_task->sub.empty() &&
+                               previous_task->pc_click_retry_times > 0;
+    const int retry_limit = retry_enabled ? previous_task->pc_click_retry_times : 0;
+    const std::string operation =
+        previous_task != nullptr && previous_task->name.ends_with("RecruitConfirm") ? "RecruitConfirm" : "Navigation";
+    int click_retries = 0;
+    int recognition_failures = 0;
     HitDetail hits;
     for (int cur_retry = 0; cur_retry <= m_retry_times; ++cur_retry) {
         json::value info = basic_info();
@@ -464,6 +480,37 @@ std::pair<ProcessTask::NodeStatus, TaskConstPtr> ProcessTask::find_and_run_task(
         if (hits = find_first(list); hits.task_ptr != nullptr) {
             break;
         }
+        // 先给下一界面一次额外识别机会；只在原按钮仍存在时重新点击。
+        if (!retry_enabled || ++recognition_failures < (m_retry_times == 0 ? 1 : 2) || hits.image == nullptr ||
+            hits.image->empty()) {
+            continue;
+        }
+        // 与 next 的失败识别共用当前截图，不使用原按钮的区域缓存或旧坐标。
+        PipelineAnalyzer source_analyzer(*hits.image);
+        source_analyzer.set_tasks({ previous_task->name });
+        const auto source = source_analyzer.analyze();
+        if (!source || need_exit()) {
+            continue;
+        }
+        if (click_retries >= retry_limit) {
+            break;
+        }
+        ++click_retries;
+        notify_pc_click_retry(operation, "retrying", click_retries, retry_limit);
+        if (need_exit() || !m_enable) {
+            return { NodeStatus::Interrupted, nullptr };
+        }
+        HitDetail retry_hit { .image = hits.image, .rect = source->rect, .task_ptr = source->task_ptr };
+        // 只重新执行点击，避免重复触发插件、子任务或业务计数。
+        if (run_action(retry_hit) != NodeStatus::Success || !sleep(calc_post_delay(previous_task))) {
+            return { NodeStatus::Interrupted, nullptr };
+        }
+        recognition_failures = 0;
+        cur_retry = -1;
+    }
+
+    if (click_retries > 0 && !need_exit()) {
+        notify_pc_click_retry(operation, hits.task_ptr != nullptr ? "succeeded" : "failed", click_retries, retry_limit);
     }
 
     if (hits.task_ptr == nullptr) {

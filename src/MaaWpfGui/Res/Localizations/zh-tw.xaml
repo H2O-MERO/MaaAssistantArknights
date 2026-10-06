@@ -1940,6 +1940,12 @@ C:\leidian\LDPlayer9
 5. 在明日方舟設定中調小滑鼠指標比例，以減少對辨識區域的遮擋
 6. 遊戲解析度需為 16:9，推薦設定 1280x720 或 1920x1080</system:String>
     <system:String x:Key="UseAttachWindowWarningRecommendation" xml:space="preserve">7. 推薦滑鼠輸入方式使用 PostMsg-WindowPos，使用此方式可以很大程度解決 PC 端辨識錯誤和卡住的問題</system:String>
+    <system:String x:Key="PcClickRetryNavigation">頁面切換</system:String>
+    <system:String x:Key="PcClickRetryRecruitConfirm">公開招募確認</system:String>
+    <system:String x:Key="PcClickRetryRecruitTimer">公開招募時間設定</system:String>
+    <system:String x:Key="PcClickRetrying">PC：{0}未生效，重新辨識並點擊（第 {1}/{2} 次）</system:String>
+    <system:String x:Key="PcClickRetrySucceeded">PC：{0}重試成功（已重試 {1} 次）</system:String>
+    <system:String x:Key="PcClickRetryFailed">PC：{0}重試失敗（已重試 {1}/{2} 次）</system:String>
     <system:String x:Key="AttachWindowScreencapMethod">截圖方式</system:String>
     <system:String x:Key="AttachWindowMouseMethod">滑鼠輸入</system:String>
     <system:String x:Key="AttachWindowKeyboardMethod">鍵盤輸入</system:String>

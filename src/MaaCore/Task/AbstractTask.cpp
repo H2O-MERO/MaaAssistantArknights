@@ -120,6 +120,23 @@ json::value asst::AbstractTask::basic_info_with_what(std::string what) const
     return info;
 }
 
+void asst::AbstractTask::notify_pc_click_retry(
+    const std::string& operation,
+    const std::string& state,
+    int retries,
+    int limit)
+{
+    LogInfo << "PC click retry" << operation << state << retries << '/' << limit;
+    auto info = basic_info_with_what("PcClickRetry");
+    info["details"] = json::object {
+        { "operation", operation },
+        { "state", state },
+        { "retry_count", retries },
+        { "max_retries", limit },
+    };
+    callback(AsstMsg::SubTaskExtraInfo, info);
+}
+
 void asst::AbstractTask::callback(AsstMsg msg, const json::value& detail)
 {
     for (const TaskPluginPtr& plugin : m_plugins) {

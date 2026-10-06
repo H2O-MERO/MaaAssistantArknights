@@ -1,4 +1,16 @@
 {
+    "StageEntries": {
+        "pcClickRetryTimes": 3,
+        "pcClickRetryTimes_Doc": "资源关卡入口点击后，next 未命中且原入口仍存在时，最多重新定位并点击 3 次；0 关闭，范围 0~10。"
+    },
+    "RecruitConfirm": {
+        "pcClickRetryTimes": 3,
+        "pcClickRetryTimes_Doc": "公招确认后未返回公招首页，且确认按钮仍存在时，最多重新定位并点击 3 次。"
+    },
+    "RecruitTimerDecrement": {
+        "pcClickRetryTimes": 3,
+        "pcClickRetryTimes_Doc": "公招时间调整未生效时，读取实际时间并重新定位减号，每次调整最多额外重试 3 次。"
+    },
     "Roguelike@StageTraderInvestSystem": {
         "templThreshold": 0.7
     }

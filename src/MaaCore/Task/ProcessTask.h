@@ -71,7 +71,7 @@ protected:
     HitDetail find_first(const TaskList& list);
     NodeStatus run_action(const HitDetail& hits) const;
     NodeStatus run_task(const HitDetail& hits);
-    std::pair<NodeStatus, TaskConstPtr> find_and_run_task(const TaskList& list);
+    std::pair<NodeStatus, TaskConstPtr> find_and_run_task(const TaskList& list, bool allow_click_retry);
     // for fast init only, not for runtime use
     ProcessTask& set_override_next(std::unordered_map<std::string, TaskList> next_override);
 

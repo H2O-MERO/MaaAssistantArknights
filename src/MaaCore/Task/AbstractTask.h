@@ -95,6 +95,7 @@ protected:
         bool use_cache = true,
         bool auto_clean = true);
     json::value basic_info_with_what(std::string what) const;
+    void notify_pc_click_retry(const std::string& operation, const std::string& state, int retries, int limit);
 
     bool m_enable = true;
     bool m_ignore_error = false;

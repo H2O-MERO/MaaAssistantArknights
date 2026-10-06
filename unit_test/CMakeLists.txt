@@ -35,3 +35,10 @@ target_link_libraries(maa-algorithm-test PRIVATE Catch2::Catch2WithMain)
 target_include_directories(maa-algorithm-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src/MaaCore)
 
 catch_discover_tests(maa-algorithm-test TEST_PREFIX "algorithm::")
+
+add_executable(maa-recruit-timer-test MaaCore/RecruitTimerTest.cpp)
+target_compile_features(maa-recruit-timer-test PRIVATE cxx_std_20)
+target_compile_options(maa-recruit-timer-test PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+target_link_libraries(maa-recruit-timer-test PRIVATE Catch2::Catch2WithMain)
+target_include_directories(maa-recruit-timer-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src/MaaCore)
+catch_discover_tests(maa-recruit-timer-test TEST_PREFIX "recruit_timer::")

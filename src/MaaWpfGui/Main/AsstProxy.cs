@@ -2243,6 +2243,34 @@ public class AsstProxy
         string what = details["what"]?.ToString() ?? string.Empty;
         switch (what)
         {
+            case "PcClickRetry":
+                {
+                    var operationKey = subTaskDetails?["operation"]?.ToString() switch {
+                        "Navigation" => "PcClickRetryNavigation",
+                        "RecruitConfirm" => "PcClickRetryRecruitConfirm",
+                        "RecruitTimer" => "PcClickRetryRecruitTimer",
+                        _ => "PcClickRetryNavigation",
+                    };
+                    var state = subTaskDetails?["state"]?.ToString();
+                    var messageKey = state switch {
+                        "retrying" => "PcClickRetrying",
+                        "succeeded" => "PcClickRetrySucceeded",
+                        "failed" => "PcClickRetryFailed",
+                        _ => null,
+                    };
+                    if (messageKey is null)
+                    {
+                        break;
+                    }
+
+                    var retries = subTaskDetails?["retry_count"]?.ToObject<int>() ?? 0;
+                    var limit = subTaskDetails?["max_retries"]?.ToObject<int>() ?? 0;
+                    Instances.TaskQueueViewModel.AddLog(
+                        LocalizationHelper.GetStringFormat(messageKey, LocalizationHelper.GetString(operationKey), retries, limit),
+                        state == "succeeded" ? UiLogColor.Info : UiLogColor.Warning);
+                    break;
+                }
+
             case "StageDrops":
                 {
                     string allDrops = string.Empty;

@@ -4,9 +4,11 @@
 #include "Config/Miscellaneous/RecruitConfig.h"
 #include "Config/TaskData.h"
 #include "Controller/Controller.h"
+#include "Task/Miscellaneous/RecruitTimer.h"
 #include "Task/ProcessTask.h"
 #include "Task/ReportDataTask.h"
 #include "Utils/Logger.hpp"
+#include "Utils/StringMisc.hpp"
 #include "Vision/Miscellaneous/RecruitImageAnalyzer.h"
 #include "Vision/MultiMatcher.h"
 #include "Vision/OCRer.h"
@@ -748,16 +750,34 @@ asst::AutoRecruitTask::calc_task_result_type asst::AutoRecruitTask::recruit_calc
         // try to set the timer to desired value
         if (m_set_time) {
             Log.info("recruitment time:", recruitment_time, "min");
-            const int desired_hour = recruitment_time / 60;
-            const int desired_minute_div_10 = (recruitment_time % 60) / 10;
-            const int temp = desired_hour + (desired_minute_div_10 != 0);
-            const int hour_delta = (1 < temp) ? (1 + 9 - temp) : (temp - 1);
-            const int minute_delta = (0 < desired_minute_div_10) ? (0 + 6 - desired_minute_div_10) : (0);
-            for (int i = 0; i < hour_delta; ++i) {
-                ctrler()->click(image_analyzer.get_hour_decrement_rect());
+            if (ctrler()->get_controller_type() == ControllerType::Win32) {
+                if (!set_timer_pc(recruitment_time)) {
+                    return {};
+                }
+                // 时间调整期间画面可能偏转，选择标签前重新获取标签坐标。
+                image_analyzer.set_image(ctrler()->get_image());
+                if (!image_analyzer.analyze()) {
+                    return {};
+                }
+                std::vector<RecruitConfig::TagId> current_tags;
+                std::ranges::transform(tags, std::back_inserter(current_tags), std::mem_fn(&TextRect::text));
+                if (!std::ranges::is_permutation(tag_ids, current_tags)) {
+                    LogWarn << "Recruit tags changed while setting the timer";
+                    return {};
+                }
             }
-            for (int i = 0; i < minute_delta; ++i) {
-                ctrler()->click(image_analyzer.get_minute_decrement_rect());
+            else {
+                const int desired_hour = recruitment_time / 60;
+                const int desired_minute_div_10 = (recruitment_time % 60) / 10;
+                const int temp = desired_hour + (desired_minute_div_10 != 0);
+                const int hour_delta = (1 < temp) ? (1 + 9 - temp) : (temp - 1);
+                const int minute_delta = (0 < desired_minute_div_10) ? (0 + 6 - desired_minute_div_10) : (0);
+                for (int i = 0; i < hour_delta; ++i) {
+                    ctrler()->click(image_analyzer.get_hour_decrement_rect());
+                }
+                for (int i = 0; i < minute_delta; ++i) {
+                    ctrler()->click(image_analyzer.get_minute_decrement_rect());
+                }
             }
         }
 
@@ -808,6 +828,9 @@ bool asst::AutoRecruitTask::recruit_begin()
 
 bool asst::AutoRecruitTask::check_timer(int minutes_expected)
 {
+    if (ctrler()->get_controller_type() == ControllerType::Win32) {
+        return read_timer(ctrler()->get_image()) == minutes_expected;
+    }
     const auto image = ctrler()->get_image();
     const auto replace_map = Task.get<OcrTaskInfo>("NumberOcrReplace")->replace_map;
 
@@ -840,6 +863,118 @@ bool asst::AutoRecruitTask::check_timer(int minutes_expected)
         }
     }
     return true;
+}
+
+std::optional<int> asst::AutoRecruitTask::read_timer(const cv::Mat& image) const
+{
+    const auto replace_map = Task.get<OcrTaskInfo>("NumberOcrReplace")->replace_map;
+    OCRer hour_ocr(image);
+    hour_ocr.set_task_info("RecruitTimerH");
+    hour_ocr.set_required({ "00", "01", "02", "03", "04", "05", "06", "07", "08", "09" });
+    hour_ocr.set_replace(replace_map);
+    const auto hours = hour_ocr.analyze();
+    OCRer minute_ocr(image);
+    minute_ocr.set_task_info("RecruitTimerM");
+    minute_ocr.set_replace(replace_map);
+    const auto minutes = minute_ocr.analyze();
+    int hour = 0;
+    int minute = 0;
+    if (!hours || hours->empty() || !minutes || minutes->empty() ||
+        !utils::chars_to_number<int, true>(hours->front().text, hour) ||
+        !utils::chars_to_number<int, true>(minutes->front().text, minute) || hour < 0 || hour > 9 || minute < 0 ||
+        minute >= 60 || minute % 10 != 0 || (hour == 9 && minute != 0)) {
+        LogWarn << "Failed to recognize the current recruit timer";
+        return std::nullopt;
+    }
+    return hour * 60 + minute;
+}
+
+bool asst::AutoRecruitTask::set_timer_pc(int minutes_expected)
+{
+    LogTraceFunction;
+    if (minutes_expected < 10 || minutes_expected > 540 || minutes_expected % 10 != 0) {
+        LogError << "Invalid expected recruit timer" << minutes_expected;
+        return false;
+    }
+
+    const int retry_limit = Task.get("RecruitTimerDecrement")->pc_click_retry_times;
+    const int delay = Config.get_options().task_delay;
+    constexpr int MaxAdjustments = 16;
+    int adjustments = 0;
+    int retries = 0;
+    std::optional<int> previous_time;
+    while (!need_exit()) {
+        auto image = ctrler()->get_image();
+        auto current_time = read_timer(image);
+        if (previous_time && current_time == previous_time) {
+            if (!sleep(delay)) {
+                return false;
+            }
+            image = ctrler()->get_image();
+            current_time = read_timer(image);
+        }
+        // OCR 暂未稳定时只重新截图，不向未知画面发点击。
+        for (int retry = 0; !current_time && retry < 2; ++retry) {
+            if (!sleep(delay)) {
+                return false;
+            }
+            image = ctrler()->get_image();
+            current_time = read_timer(image);
+        }
+        if (!current_time) {
+            if (retries > 0) {
+                notify_pc_click_retry("RecruitTimer", "failed", retries, retry_limit);
+            }
+            return false;
+        }
+        if (current_time == minutes_expected) {
+            if (retries > 0) {
+                notify_pc_click_retry("RecruitTimer", "succeeded", retries, retry_limit);
+            }
+            return true;
+        }
+        const bool unchanged = previous_time && current_time == previous_time;
+        if (unchanged && retries >= retry_limit) {
+            notify_pc_click_retry("RecruitTimer", "failed", retries, retry_limit);
+            return false;
+        }
+        if (!unchanged) {
+            if (retries > 0) {
+                notify_pc_click_retry("RecruitTimer", "succeeded", retries, retry_limit);
+            }
+            retries = 0;
+            if (++adjustments > MaxAdjustments) {
+                LogError << "Recruit timer adjustment limit reached" << minutes_expected;
+                return false;
+            }
+        }
+
+        MultiMatcher buttons(image);
+        buttons.set_task_info("RecruitTimerDecrement");
+        auto result = buttons.analyze();
+        if (!result || result->size() != 2) {
+            LogWarn << "Failed to recognize recruit timer decrement buttons";
+            if (retries > 0) {
+                notify_pc_click_retry("RecruitTimer", "failed", retries, retry_limit);
+            }
+            return false;
+        }
+        sort_by_horizontal_(*result);
+        const auto& rect = recruit_calc::should_decrement_hour(*current_time, minutes_expected) ? result->at(0).rect
+                                                                                                : result->at(1).rect;
+        if (unchanged) {
+            notify_pc_click_retry("RecruitTimer", "retrying", ++retries, retry_limit);
+        }
+        if (need_exit()) {
+            return false;
+        }
+        previous_time = current_time;
+        ctrler()->click(rect);
+        if (!sleep(delay)) {
+            return false;
+        }
+    }
+    return false;
 }
 
 bool asst::AutoRecruitTask::check_recruit_home_page()

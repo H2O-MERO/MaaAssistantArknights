@@ -746,6 +746,7 @@ struct TaskInfo : public TaskPipelineInfo
     int pre_delay = 0;                      // 执行该任务前的延时
     int post_delay = 0;                     // 执行该任务后的延时
     int retry_times = INT_MAX;              // 未找到图像时的重试次数
+    int pc_click_retry_times = 0;           // PC 端点击后未进入 next 时，重新识别并点击的次数上限
     Rect roi;                               // 要识别的区域，若为0则全图识别
     Rect rect_move;                         // 识别结果移动：有些结果识别到的，和要点击的不是同一个位置。
                                             // 即识别到了res，点击res + result_move的位置
